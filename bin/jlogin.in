@@ -274,9 +274,22 @@ proc source_password_file { password_file } {
 	send_user "\nError: $password_file must not be world readable/writable\n"
 	exit 1
     }
-    if [ catch {source $password_file} reason ] {
-	send_user "\nError: $reason\n"
-	exit 1
+    if { [string match "*.gpg" $password_file] } {
+	set clogin_fd [open "| gpg --quiet --batch -o - $password_file" ]
+	set clogin_data [read $clogin_fd]
+	if { [llength $clogin_data] < 5 } {
+	    send_user "\nError decrypting file $password_file or no data in file $password_file.\n"
+	    exit 1
+	}
+	if [ catch {eval $clogin_data} reason ] {
+	    send_user "\nError: $reason\n"
+	    exit 1
+	}
+    } else {
+	if [catch {source $password_file} reason] {
+	    send_user "\nError: $reason\n"
+	    exit 1
+	}
     }
 }
 
