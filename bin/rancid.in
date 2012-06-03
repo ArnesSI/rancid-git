@@ -68,12 +68,32 @@ my($aclsort) = ("ipsort");		# ACL sorting mode
 my($config_register);			# configuration register value
 my($filter_commstr);			# SNMP community string filtering
 my($filter_pwds);			# password filtering mode
+my($save_pwds); 			# save passwords instead of removing them
 my($supbootdisk) = 0;			# skip sup-bootflash if sup-bootdisk
 					# worked
 
 # This routine is used to print out the router configuration
 sub ProcessHistory {
     my($new_hist_tag,$new_command,$command_string,@string) = (@_);
+
+    # saving passwords
+    # luckily $_ is still set to the actual input line with passwords
+    my $string_raw = $_;
+    my $secret_id = "";
+    chomp $string_raw;
+    if ($save_pwds && "@string" =~ /<removed>/) {
+	print STDERR "Saving password from @string" if ($debug);
+	$secret_id = pwdsSave($string_raw);
+	if (! defined $secret_id) {
+	    my $save_error = pwdsGetError();
+	    print STDOUT "$save_error\n";
+	    print STDERR "$save_error\n" if ($debug);
+	    return (0);
+	}
+	chomp @string;
+	push @string, "<hash: $secret_id>\n";
+    }
+
     if ((($new_hist_tag ne $hist_tag) || ($new_command ne $command))
 	&& scalar(%history)) {
 	print eval "$command \%history";
@@ -1771,17 +1791,17 @@ sub WriteTerm {
 	/^ speed / && $lineauto	&& next; # kill speed on serial lines
 	/^ clockrate /		&& next; # kill clockrate on serial interfaces
 	if (/^(enable )?(password|passwd)( level \d+)? / && $filter_pwds >= 1) {
-	    ProcessHistory("ENABLE","","","!$1$2$3 <removed>\n");
+	    ProcessHistory("ENABLE","","","!$1$2$3 <removed>\n") || return(-1);
 	    next;
 	}
 	if (/^(enable secret) / && $filter_pwds >= 2) {
-	    ProcessHistory("ENABLE","","","!$1 <removed>\n");
+	    ProcessHistory("ENABLE","","","!$1 <removed>\n") || return(-1);
 	    next;
 	}
 	if (/^username (\S+)(\s.*)? secret /) {
 	    if ($filter_pwds >= 2) {
 		ProcessHistory("USER","keysort","$1",
-			       "!username $1$2 secret <removed>\n");
+			       "!username $1$2 secret <removed>\n") || return(-1);
 	    } else {
 		ProcessHistory("USER","keysort","$1","$_");
 	    }
@@ -1790,10 +1810,10 @@ sub WriteTerm {
 	if (/^username (\S+)(\s.*)? password ((\d) \S+|\S+)/) {
 	    if ($filter_pwds >= 2) {
 		ProcessHistory("USER","keysort","$1",
-			       "!username $1$2 password <removed>\n");
+			       "!username $1$2 password <removed>\n") || return(-1);
 	    } elsif ($filter_pwds >= 1 && $4 ne "5"){
 		ProcessHistory("USER","keysort","$1",
-			       "!username $1$2 password <removed>\n");
+			       "!username $1$2 password <removed>\n") || return(-1);
 	    } else {
 		ProcessHistory("USER","keysort","$1","$_");
 	    }
@@ -1802,7 +1822,7 @@ sub WriteTerm {
 	# cisco AP w/ IOS
 	if (/^(wlccp \S+ username (\S+)(\s.*)? password) (\d \S+|\S+)/) {
 	    if ($filter_pwds >= 1) {
-		ProcessHistory("USER","keysort","$2","!$1 <removed>\n");
+		ProcessHistory("USER","keysort","$2","!$1 <removed>\n") || return(-1);
 	    } else {
 		ProcessHistory("USER","keysort","$2","$_");
 	    }
@@ -1811,73 +1831,73 @@ sub WriteTerm {
 	# filter auto "rogue ap" configuration lines
 	/^rogue ap classify / && next;
 	if (/^( set session-key (in|out)bound ah \d+ )/ && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1<removed>\n");
+	    ProcessHistory("","","","!$1<removed>\n") || return(-1);
 	    next;
 	}
 	if (/^( set session-key (in|out)bound esp \d+ (authenticator|cypher) )/
 	    && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1<removed>\n");
+	    ProcessHistory("","","","!$1<removed>\n") || return(-1);
 	    next;
 	}
 	if (/^(\s*)password / && $filter_pwds >= 1) {
-	    ProcessHistory("LINE-PASS","","","!$1password <removed>\n");
+	    ProcessHistory("LINE-PASS","","","!$1password <removed>\n") || return(-1);
 	    next;
 	}
 	if (/^(\s*)secret / && $filter_pwds >= 2) {
-	    ProcessHistory("LINE-PASS","","","!$1secret <removed>\n");
+	    ProcessHistory("LINE-PASS","","","!$1secret <removed>\n") || return(-1);
 	    next;
 	}
 	if (/^\s*neighbor (\S*) password / && $filter_pwds >= 1) {
-	    ProcessHistory("","","","! neighbor $1 password <removed>\n");
+	    ProcessHistory("","","","! neighbor $1 password <removed>\n") || return(-1);
 	    next;
 	}
 	if (/^(\s*ppp .* hostname) .*/ && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed>\n"); next;
+	    ProcessHistory("","","","!$1 <removed>\n") || return(-1); next;
 	}
 	if (/^(\s*ppp .* password) \d .*/ && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed>\n"); next;
+	    ProcessHistory("","","","!$1 <removed>\n") || return(-1); next;
 	}
 	if (/^(ip ftp password) / && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed>\n"); next;
+	    ProcessHistory("","","","!$1 <removed>\n") || return(-1); next;
 	}
 	if (/^( ip ospf authentication-key) / && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed>\n"); next;
+	    ProcessHistory("","","","!$1 <removed>\n") || return(-1); next;
 	}
 	# isis passwords appear to be completely plain-text
 	if (/^\s+isis password (\S+)( .*)?/ && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!isis password <removed>$2\n"); next;
+	    ProcessHistory("","","","!isis password <removed>$2\n") || return(-1); next;
 	}
 	if (/^\s+(domain-password|area-password) (\S+)( .*)?/
 							&& $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed>$3\n"); next;
+	    ProcessHistory("","","","!$1 <removed>$3\n") || return(-1); next;
 	}
 	# this is reversable, despite 'md5' in the cmd
 	if (/^( ip ospf message-digest-key \d+ md5) / && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed>\n"); next;
+	    ProcessHistory("","","","!$1 <removed>\n") || return(-1); next;
 	}
 	# this is also reversable, despite 'md5 encrypted' in the cmd
 	if (/^(  message-digest-key \d+ md5 (7|encrypted)) /
 	    && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed>\n"); next;
+	    ProcessHistory("","","","!$1 <removed>\n") || return(-1); next;
 	}
 	if (/^((crypto )?isakmp key) (\d )?\S+ / && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed> $'"); next;
+	    ProcessHistory("","","","!$1 <removed> $'") || return(-1); next;
 	}
 	# filter HSRP passwords
 	if (/^(\s+standby \d+ authentication) / && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed>\n"); next;
+	    ProcessHistory("","","","!$1 <removed>\n") || return(-1); next;
 	}
 	# this appears in "measurement/sla" images
 	if (/^(\s+key-string \d?)/ && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed>\n"); next;
+	    ProcessHistory("","","","!$1 <removed>\n") || return(-1); next;
 	}
 	if (/^( l2tp tunnel \S+ password)/ && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed>\n"); next;
+	    ProcessHistory("","","","!$1 <removed>\n") || return(-1); next;
 	}
 	# i am told these are plain-text on the PIX
 	if (/^(vpdn username (\S+) password)/) {
 	    if ($filter_pwds >= 1) {
-		ProcessHistory("USER","keysort","$2","!$1 <removed>\n");
+		ProcessHistory("USER","keysort","$2","!$1 <removed>\n") || return(-1);
 	    } else {
 		ProcessHistory("USER","keysort","$2","$_");
 	    }
@@ -1885,19 +1905,19 @@ sub WriteTerm {
 	}
 	# ASA/PIX keys in more system:running-config
 	if (/^( pre-shared-key | key |failover key ).*/ && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed> $'"); next;
+	    ProcessHistory("","","","!$1 <removed> $'") || return(-1); next;
 	}
 	# ASA/PIX keys in more system:running-config
 	if (/(\s+ldap-login-password )\S+(.*)/ && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed> $'"); next;
+	    ProcessHistory("","","","!$1 <removed> $'") || return(-1); next;
 	}
 	# filter WPA password such as on cisco 877W ISR
 	if (/^\s+(wpa-psk ascii|hex \d) / && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed>\n"); next;
+	    ProcessHistory("","","","!$1 <removed>\n") || return(-1); next;
 	}
 	#
 	if (/^( cable shared-secret )/ && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed>\n");
+	    ProcessHistory("","","","!$1 <removed>\n") || return(-1);
 	    next;
 	}
 	/fair-queue individual-limit/ && next;
@@ -1983,7 +2003,7 @@ sub WriteTerm {
 			last;
 		    }
 		}
-		ProcessHistory("SNMPSERVERHOST","ipsort","$ip","$line\n");
+		ProcessHistory("SNMPSERVERHOST","ipsort","$ip","$line\n") || return(-1);
 	    } else {
 		ProcessHistory("SNMPSERVERHOST","ipsort","$1","$_");
 	    }
@@ -1992,7 +2012,7 @@ sub WriteTerm {
 	if (/^(snmp-server community) (\S+)/) {
 	    if ($filter_commstr) {
 		ProcessHistory("SNMPSERVERCOMM","keysort","$_",
-			       "!$1 <removed>$'") && next;
+			       "!$1 <removed>$'")  || return(-1); next;
 	    } else {
 		ProcessHistory("SNMPSERVERCOMM","keysort","$_","$_") && next;
 	    }
@@ -2000,7 +2020,7 @@ sub WriteTerm {
 	# prune tacacs/radius server keys
 	if (/^((tacacs|radius)-server\s(\w*[-\s(\s\S+])*\s?key) (\d )?\S+/
 	    && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed>$'"); next;
+	    ProcessHistory("","","","!$1 <removed>$'") || return(-1); next;
 	}
 	# order clns host statements
 	/^clns host \S+ (\S+)/ &&
@@ -2009,7 +2029,7 @@ sub WriteTerm {
 	/^alias / && ProcessHistory("ALIAS","keysort","$_","$_") && next;
 	# delete ntp auth password - this md5 is a reversable too
 	if (/^(ntp authentication-key \d+ md5) / && $filter_pwds >= 1) {
-	    ProcessHistory("","","","!$1 <removed>\n"); next;
+	    ProcessHistory("","","","!$1 <removed>\n") || return(-1); next;
 	}
 	# order ntp peers/servers
 	if (/^ntp (server|peer) (\d+)\.(\d+)\.(\d+)\.(\d+)/) {
@@ -2030,9 +2050,10 @@ sub WriteTerm {
 	/^ip rcmd/ && ProcessHistory("RCMD","keysort","$_","$_") && next;
 
 	# system controller
-	/^syscon address (\S*) (\S*)/ &&
-	    ProcessHistory("","","","!syscon address $1 <removed>\n") &&
+	if (/^syscon address (\S*) (\S*)/) {
+	    ProcessHistory("","","","!syscon address $1 <removed>\n") || return(-1);
 	    next;
+	}
 	if (/^syscon password (\S*)/ && $filter_pwds >= 1) {
 	    ProcessHistory("","","","!syscon password <removed>\n");
 	    next;
@@ -2187,6 +2208,17 @@ if ($ENV{"FILTER_PWDS"} =~ /no/i) {
     $filter_pwds = 1;
 }
 
+# will we be saving passwords
+if (defined($ENV{"SAVE_PWDS_SCRIPT"}) &&
+    -e $ENV{"SAVE_PWDS_SCRIPT"}) {
+    print STDERR ("Loading password saving code from ".$ENV{"SAVE_PWDS_SCRIPT"}."\n") if ($debug);
+    print STDOUT ("Loading password saving code from ".$ENV{"SAVE_PWDS_SCRIPT"}."\n") if ($log);
+    require($ENV{"SAVE_PWDS_SCRIPT"});
+    pwdsRouterStart() ||
+	die "pwdsRouterStart() in ".$ENV{"SAVE_PWDS_SCRIPT"}." failed with: ".pwdsGetError();
+    $save_pwds = 1;
+}
+
 ProcessHistory("","","","!RANCID-CONTENT-TYPE: cisco\n!\n");
 ProcessHistory("COMMENTS","keysort","B0","!\n");
 ProcessHistory("COMMENTS","keysort","D0","!\n");
@@ -2231,6 +2263,12 @@ ProcessHistory("","","","");
 # Cleanup
 close(INPUT);
 close(OUTPUT);
+
+# password saving router end code
+if ($save_pwds) {
+    pwdsRouterEnd() ||
+	die "pwdsRouterEnd() in ".$ENV{"SAVE_PWDS_SCRIPT"}." failed with: ".pwdsGetError();
+}
 
 if (defined($ENV{NOPIPE}) && $ENV{NOPIPE} =~ /^YES/i) {
     unlink("$host.raw") if (! $debug);
