@@ -125,6 +125,14 @@ if [ ! -d $LOGDIR ] ; then
     mkdir $LOGDIR || (echo "Could not create log directory: $LOGDIR"; exit 1)
 fi
 
+# run password storage code if configured
+if [ -f $SAVE_PWDS_SCRIPT ] ; then
+    @PERLV@ -e "require(\"$SAVE_PWDS_SCRIPT\"); if (!pwdsRancidStart()) {print pwdsGetError().\"\\n\"; exit 1;};"
+    if [ $? -ne 0 ] ; then
+	exit 1
+    fi
+fi
+
 for GROUP in $LIST_OF_GROUPS
 do
 
@@ -173,3 +181,11 @@ END
 	echo ending: `date`
     ) >$LOGDIR/$GROUP.`date +%Y%m%d.%H%M%S` 2>&1
 done
+
+# run password storage code if configured
+if [ -f $SAVE_PWDS_SCRIPT ] ; then
+    @PERLV@ -e "require(\"$SAVE_PWDS_SCRIPT\"); if (!pwdsRancidEnd()) {print pwdsGetError().\"\\n\"; exit 1;};"
+    if [ $? -ne 0 ] ; then
+	exit 1
+    fi
+fi
