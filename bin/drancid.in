@@ -47,10 +47,30 @@ $timeo = 90;                                # dlogin timeout in seconds
 my(@commandtable, %commands, @commands);# command lists
 my($filter_commstr);                     # SNMP community string filtering
 my(%filter_pwds);                        # password filtering mode
+my($save_pwds);                          # save passwords instead of removing them
 
 # This routine is used to print out the router configuration
 sub ProcessHistory {
     my($new_hist_tag,$new_command,$command_string,@string) = (@_);
+
+    # saving passwords
+    # luckily $_ is still set to the actual input line with passwords
+    my $string_raw = $_;
+    my $secret_id = "";
+    chomp $string_raw;
+    if ($save_pwds && "@string" =~ /<removed>/) {
+        print STDERR "Saving password from @string" if ($debug);
+        $secret_id = pwdsSave($string_raw);
+        if (! defined $secret_id) {
+            my $save_error = pwdsGetError();
+            print STDOUT "$save_error\n";
+            print STDERR "$save_error\n" if ($debug);
+            return (0);
+        }
+        chomp @string;
+        push @string, "<hash: $secret_id>\n";
+    }
+
     if ((($new_hist_tag ne $hist_tag) || ($new_command ne $command))
         && scalar(%history)) {
         print eval "$command \%history";
@@ -204,14 +224,14 @@ sub WriteTerm {
         s/^\s*--More-- or \(q\)uit\s*//;
 
         if (/^(enable )?(password|passwd)( level \d+)? / && $filter_pwds >= 1) {
-            ProcessHistory("ENABLE","","","!$1$2$3 <removed>\n");
+            ProcessHistory("ENABLE","","","!$1$2$3 <removed>\n") || return(-1);
             next;
         }
         if (/^username (\S+)(\s.*)? password ((\d) \S+|\S+)/) {
             if ($filter_pwds >= 2) {
-                ProcessHistory("USER","keysort","$1","!username $1$2 password <removed>\n");
+                ProcessHistory("USER","keysort","$1","!username $1$2 password <removed>\n") || return(-1);
             } elsif ($filter_pwds >= 1 && $4 ne "5"){
-                ProcessHistory("USER","keysort","$1","!username $1$2 password <removed>\n");
+                ProcessHistory("USER","keysort","$1","!username $1$2 password <removed>\n") || return(-1);
             } else {
                 ProcessHistory("USER","keysort","$1","$_");
             }
@@ -219,18 +239,18 @@ sub WriteTerm {
         }
         if (/^(snmp-server community) (\S+)/) {
             if ($filter_commstr) {
-                ProcessHistory("SNMPSERVERCOMM","keysort","$_","!$1 <removed>$'") && next;
+                ProcessHistory("SNMPSERVERCOMM","keysort","$_","!$1 <removed>$'") || return(-1); next;
             } else {
                 ProcessHistory("SNMPSERVERCOMM","keysort","$_","$_") && next;
             }
         }
         # prune tacacs/radius server keys
         if (/^(tacacs-server|radius-server) key / && $filter_pwds >= 1) {
-            ProcessHistory("","","","!$1 key <removed>\n"); next;
+            ProcessHistory("","","","!$1 key <removed>\n") || return(-1); next;
         }
         if (/^((tacacs-server|radius-server) host \S+ key) / &&
                                                         $filter_pwds >= 1) {
-            ProcessHistory("","","","!$1 <removed>\n"); next;
+            ProcessHistory("","","","!$1 <removed>\n") || return(-1); next;
         }
         ProcessHistory("","","","$_");
     }
@@ -304,6 +324,17 @@ if ($ENV{"FILTER_PWDS"} =~ /no/i) {
     $filter_pwds = 1;
 }
 
+# will we be saving passwords
+if (defined($ENV{"SAVE_PWDS_SCRIPT"}) &&
+    -e $ENV{"SAVE_PWDS_SCRIPT"}) {
+    print STDERR ("Loading password saving code from ".$ENV{"SAVE_PWDS_SCRIPT"}."\n") if ($debug);
+    print STDOUT ("Loading password saving code from ".$ENV{"SAVE_PWDS_SCRIPT"}."\n") if ($log);
+    require($ENV{"SAVE_PWDS_SCRIPT"});
+    pwdsRouterStart() ||
+        die "pwdsRouterStart() in ".$ENV{"SAVE_PWDS_SCRIPT"}." failed with: ".pwdsGetError();
+    $save_pwds = 1;
+}
+
 ProcessHistory("","","","!RANCID-CONTENT-TYPE: Dell\n!\n");
 ProcessHistory("COMMENTS","keysort","B0","!\n");
 #ProcessHistory("COMMENTS","keysort","D0","!\n");
@@ -349,6 +380,12 @@ ProcessHistory("","","","");
 # Cleanup
 close(INPUT);
 close(OUTPUT);
+
+# password saving router end code
+if ($save_pwds) {
+    pwdsRouterEnd() ||
+        die "pwdsRouterEnd() in ".$ENV{"SAVE_PWDS_SCRIPT"}." failed with: ".pwdsGetError();
+}
 
 if (defined($ENV{NOPIPE}) && $ENV{NOPIPE} =~ /^YES/i) {
     unlink("$host.raw") if (! $debug);
