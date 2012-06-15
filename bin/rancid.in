@@ -2109,7 +2109,7 @@ sub DoNothing {print STDOUT;}
 	{'dir /all sec-disk2:'		=> 'DirSlotN'},
 	{'show controllers'		=> 'ShowContAll'},
 	{'show controllers cbus'	=> 'ShowContCbus'},
-	{'show snmp mib ifmib ifindex'  => 'ShowIfIndex'},
+	#{'show snmp mib ifmib ifindex'  => 'ShowIfIndex'}, # this is long and not needed
 	{'show snmp engineID'           => 'ShowEngineID'},
 	{'show diagbus'			=> 'ShowDiagbus'},
 	{'show diag'			=> 'ShowDiag'},
