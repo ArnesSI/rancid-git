@@ -48,14 +48,15 @@
 #AUTOMAKE_OPTIONS=foreign no-dependencies
 AUTOMAKE_OPTIONS=foreign
 
-pkgdata_SCRIPTS= rancid-cvspurge rtrfilter downreport
+pkgdata_SCRIPTS= rancid-cvspurge rtrfilter downreport rancid-save-pwds-file
 dist_pkgdata_SCRIPTS=getipacctg
 dist_pkgdata_DATA=README.misc cisco-load.exp cisco-reload.exp \
 	index.html lgnotes.html
 
-EXTRA_DIST = rancid-cvspurge.in rancid.spec rtrfilter.in downreport.in
+EXTRA_DIST = rancid-cvspurge.in rancid.spec rtrfilter.in downreport.in \
+	rancid-save-pwds-file.in
 
-CLEANFILES= rancid-cvspurge downreport
+CLEANFILES= rancid-cvspurge downreport rancid-save-pwds-file
 
 all:
 
@@ -83,3 +84,9 @@ rancid-cvspurge: Makefile $(srcdir)/rancid-cvspurge.in
 	$(auto_edit) $(srcdir)/rancid-cvspurge.in >rancid-cvspurge.tmp; \
 	chmod +x rancid-cvspurge.tmp; \
 	mv rancid-cvspurge.tmp rancid-cvspurge
+
+rancid-save-pwds-file: Makefile $(srcdir)/rancid-save-pwds-file.in
+	rm -f rancid-save-pwds-file rancid-save-pwds-file.tmp; \
+	$(auto_edit) $(srcdir)/rancid-save-pwds-file.in >rancid-save-pwds-file.tmp; \
+	chmod +x rancid-save-pwds-file.tmp; \
+	mv rancid-save-pwds-file.tmp rancid-save-pwds-file

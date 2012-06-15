@@ -93,6 +93,7 @@ auto_edit = sed \
 	-e 's,@prefix\@,$(prefix),g' \
 	-e 's,@localstatedir\@,$(localstatedir),g' \
 	-e 's,@sysconfdir\@,$(sysconfdir),g' \
+	-e 's,@pkgdatadir\@,$(pkgdatadir),g' \
 	-e 's,@EXPECT_PATH\@,$(EXPECT_PATH),g' \
 	-e 's,@PERLV_PATH\@,$(PERLV_PATH),g' \
 	-e 's,@ENV_PATH\@,$(ENV_PATH),g' \
