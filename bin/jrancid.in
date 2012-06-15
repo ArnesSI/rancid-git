@@ -601,6 +601,7 @@ sub ShowConfiguration {
 	if ($snmp && /^(\s*)(community|trap-group) [^ ;]+(\s?[;{])$/) {
 		if ($filter_commstr) {
 		    ProcessHistory("","","","$1$2 \"<removed>\"$3\n") || return(-1);
+		    next;
 		}
 	}
 	if (/(\s*authentication-key )[^ ;]+/ && $filter_pwds >= 1) {
