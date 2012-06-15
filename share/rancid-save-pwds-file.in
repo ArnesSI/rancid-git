@@ -1,0 +1,170 @@
+#! @PERLV_PATH@
+#
+# Example password saving scripts. These hooks save passwords
+# to a file (pwds_safe). Each password is sha1 hashed before storing.
+# This way generate unique ID's for passwords and avoid duplicates.
+#
+# In production envoroment you should probably encrypt pwds_safe file
+# in pwdsRancidEnd hook.
+#
+# To be even safer you could replace temporary files with pipes.
+# 
+# Configure paths below.
+#
+use File::Path qw(remove_tree);
+use File::Temp qw(tempfile);
+use Digest::SHA qw(sha1_hex);
+
+# Any global variables you define will only keep value through
+# pwdsRouterStart, pwdsSave and pwdsRouterEnd function calls.
+#
+# Make sure to prefix names with pwds_ to avoid colisions in *rancid Perl
+# scripts.
+#
+# Directory for temporary files
+my $pwds_path = "/tmp/rancid_pwds_tmp";
+# File to save passwords to
+my $pwds_safe = "/tmp/rancid_pwds.txt";
+# Firehandle of temporary file
+my $pwds_temp_fh = undef;
+
+# Holds error message. Do not remove.
+my $pwds_error = undef;
+
+# Runs from runcid-run, before starting to loop through each group.
+#
+# You might do some initialization of password storage here.
+#
+# Needs to return 1 on success. On failure must return 0 and set
+# $pwds_error which will then be printed to STDOUT.
+# On failure rancid-run will terminate with exit code 1.
+sub pwdsRancidStart {
+    # prepare pwds_path
+    if (-e $pwds_path) {
+        remove_tree($pwds_path) or do {
+            $pwds_error = "Could not remove existing temp directory.";
+            return 0;
+        };
+    }
+    mkdir($pwds_path) or do {
+        $pwds_error = $!;
+        return 0;
+    };
+    return 1;
+}
+
+# Gets called from *rancid script just before it starts reading lines from
+# a router, but after *login script has been started.
+#
+# This is probably a good place to connect to password storage database if
+# needed. Connection can be stored in a global pwds_ variable and reused
+# across pwdsSave() calls.
+#
+# Needs to return 1 on success. On failure must return 0 and set 
+# $pwds_error. On failure *rancid script will die with $pwds_error.
+sub pwdsRouterStart {
+    # Open temp file
+    $pwds_temp_fh = File::Temp->new( 
+        DIR => $pwds_path,
+        UNLINK => 0,
+    );
+    return 1;
+}
+
+# Does the actual saving of passwords. The sole argument is the whole line
+# of configuration containing the password.
+#
+# It needs to return some kind of ID that maps back to the line of
+# configuration that will be stored. This ID is then appended to the cleaned
+# line of configuration. Example:
+#  !enable password <removed> <hash:ID>
+#
+# On failure return undef and set $pwds_error to a string describing the
+# problem encountered. This error will be printed to STDOUT and processing
+# of config lines will terminate.
+sub pwdsSave {
+    # Write password to temp file and return its sha1 hash to rancid.
+    my $str = shift;
+    if (! defined $str) {
+        $pwds_error = "Data to save is zero length";
+        return undef;
+    }
+    if (!defined $pwds_temp_fh) {
+        $pwds_error = "Temp file handle lost!";
+        return undef;
+    }
+    my $id = sha1_hex($str);
+    print $pwds_temp_fh "$id\t$str\n" or do {
+        $pwds_error = "Could not write to temp file";
+        return undef;
+    };
+    return "$id";
+}
+
+# Called after all the lines from the router have been read.
+#
+# You might disconnect from database at this point.
+#
+# Needs to return 1 on success. On failure must return 0 and set
+# $pwds_error. On failure *rancid script will die with $pwds_error.
+sub pwdsRouterEnd {
+    # Close temp file
+    if (!defined $pwds_temp_fh) {
+        $pwds_error = "Temp file handle lost!";
+        return undef;
+    }
+    close $pwds_temp_fh;
+    return 1;
+}
+
+# Called at the very end of rancid-run, after all groups have been completed.
+#
+# A good place to some deinitialization of password storage, possibly
+# encrypting it if applicable.
+#
+# Needs to return 1 on success. On failure must return 0 and set
+# $pwds_error which will then be printed to STDOUT.
+# On failure rancid-run will terminate with exit code 1.
+sub pwdsRancidEnd {
+    # Merge entries from all temp files into pwds_safe
+    my $files_pattern = $pwds_path."/*";
+    my @files = < $files_pattern >;
+    my %entries;
+    for my $f (@files) {
+        open(R, $f) or do {
+            $pwds_error = "Could not open $f for reading ($!)";
+            return 0;
+        };
+        foreach my $line (<R>) {
+            chomp $line;
+            if ($line =~ /^([^\t]+)\t(.*)/) {
+                $entries{$1} = $2;
+            }
+        }
+        close R;
+    }
+    open(S, ">$pwds_safe") or do {
+        $pwds_error = "Could not open $pwds_safe ($!)";
+        return 0;
+    };
+    foreach (keys %entries) {
+        print S $_."\t".$entries{$_}."\n";
+    }
+    close S;
+    remove_tree($pwds_path) or do {
+        $pwds_error = "Could not remove existing temp directory.";
+        return 0;
+    };
+    return 1;
+}
+
+# This gets called if a function returns a failure result. Returns the
+# contents of $pwds_error which should be set to a string describing the
+# problem encountered.
+sub pwdsGetError {
+    my $err =  $pwds_error;
+    $pwds_error = undef;
+    return $err;
+}
+
+1;
