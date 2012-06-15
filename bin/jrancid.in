@@ -66,11 +66,31 @@ my(@commandtable, %commands, @commands);# command lists
 my($aclsort) = ("ipsort");		# ACL sorting mode
 my($filter_commstr);			# SNMP community string filtering
 my($filter_pwds);			# password filtering mode
+my($save_pwds);				# save passwords instead of removing them
 my($ShowChassisSCB);			# Only run ShowChassisSCB() once
 
 # This routine is used to print out the router configuration
 sub ProcessHistory {
     my($new_hist_tag,$new_command,$command_string,@string) = (@_);
+
+    # saving passwords
+    # luckily $_ is still set to the actual input line with passwords
+    my $string_raw = $_;
+    my $secret_id = "";
+    chomp $string_raw;
+    if ($save_pwds && "@string" =~ /<removed>/) {
+	print STDERR "Saving password from @string" if ($debug);
+	$secret_id = pwdsSave($string_raw);
+	if (! defined $secret_id) {
+	    my $save_error = pwdsGetError();
+	    print STDOUT "$save_error\n";
+	    print STDERR "$save_error\n" if ($debug);
+	    return (0);
+	}
+	chomp @string;
+	push @string, "<hash: $secret_id>\n";
+    }
+
     if ((($new_hist_tag ne $hist_tag) || ($new_command ne $command))
 	&& scalar(%history)) {
 	print eval "$command \%history";
@@ -580,19 +600,19 @@ sub ShowConfiguration {
 	/^}/ && ($snmp = 0);
 	if ($snmp && /^(\s*)(community|trap-group) [^ ;]+(\s?[;{])$/) {
 		if ($filter_commstr) {
-		    $_ = "$1$2 \"<removed>\"$3\n";
+		    ProcessHistory("","","","$1$2 \"<removed>\"$3\n") || return(-1);
 		}
 	}
 	if (/(\s*authentication-key )[^ ;]+/ && $filter_pwds >= 1) {
-	    ProcessHistory("","","","#$1<removed>$'");
+	    ProcessHistory("","","","#$1<removed>$'") || return(-1);
 	    next;
 	}
 	if (/(\s*md5 \d+ key )[^ ;]+/ && $filter_pwds >= 1) {
-	    ProcessHistory("","","","#$1<removed>$'");
+	    ProcessHistory("","","","#$1<removed>$'") || return(-1);
 	    next;
 	}
 	if (/(\s*hello-authentication-key )[^ ;]+/ && $filter_pwds >= 1) {
-	    ProcessHistory("","","","#$1<removed>$'");
+	    ProcessHistory("","","","#$1<removed>$'") || return(-1);
 	    next;
 	}
 	# don't filter this one - there is no secret here.
@@ -601,19 +621,19 @@ sub ShowConfiguration {
 	    next;
 	}
 	if (/^(.*\ssecret )[^ ;]+/ && $filter_pwds >= 1) {
-	    ProcessHistory("","","","#$1<removed>$'");
+	    ProcessHistory("","","","#$1<removed>$'") || return(-1);
 	    next;
 	}
 	if (/(\s+encrypted-password )[^ ;]+/ && $filter_pwds >= 2) {
-	    ProcessHistory("","","","#$1<removed>$'");
+	    ProcessHistory("","","","#$1<removed>$'") || return(-1);
 	    next;
 	}
 	if (/(\s+ssh-(rsa|dsa) )\"/ && $filter_pwds >= 2) {
-	    ProcessHistory("","","","#$1<removed>;\n");
+	    ProcessHistory("","","","#$1<removed>;\n") || return(-1);
 	    next;
 	}
 	if (/^(\s+(pre-shared-|)key (ascii-text|hexadecimal) )[^ ;]+/ && $filter_pwds >= 1) {
-	    ProcessHistory("","","","#$1<removed>$'");
+	    ProcessHistory("","","","#$1<removed>$'") || return(-1);
 	    next;
 	}
 	ProcessHistory("","","","$_");
@@ -717,6 +737,17 @@ if ($ENV{"FILTER_PWDS"} =~ /no/i) {
     $filter_pwds = 1;
 }
 
+# will we be saving passwords
+if (defined($ENV{"SAVE_PWDS_SCRIPT"}) &&
+    -e $ENV{"SAVE_PWDS_SCRIPT"}) {
+    print STDERR ("Loading password saving code from ".$ENV{"SAVE_PWDS_SCRIPT"}."\n") if ($debug);
+    print STDOUT ("Loading password saving code from ".$ENV{"SAVE_PWDS_SCRIPT"}."\n") if ($log);
+    require($ENV{"SAVE_PWDS_SCRIPT"});
+    pwdsRouterStart() ||
+	die "pwdsRouterStart() in ".$ENV{"SAVE_PWDS_SCRIPT"}." failed with: ".pwdsGetError();
+    $save_pwds = 1;
+}
+
 ProcessHistory("","","","# RANCID-CONTENT-TYPE: juniper\n#\n");
 TOP: while (<INPUT>) {
     tr/\015//d;
@@ -769,6 +800,12 @@ ProcessHistory("","","","");
 # Cleanup
 close(INPUT);
 close(OUTPUT);
+
+# password saving router end code
+if ($save_pwds) {
+    pwdsRouterEnd() ||
+	die "pwdsRouterEnd() in ".$ENV{"SAVE_PWDS_SCRIPT"}." failed with: ".pwdsGetError();
+}
 
 if (defined($ENV{NOPIPE}) && $ENV{NOPIPE} =~ /^YES/i) {
     unlink("$host.raw") if (! $debug);
