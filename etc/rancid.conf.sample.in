@@ -55,6 +55,13 @@ RCSSYS=@RCSSYS@; export RCSSYS
 # if NOCOMMSTR is set, snmp community strings will be stripped from the configs
 #NOCOMMSTR=YES; export NOCOMMSTR
 #
+# Save filtered passwords to a safe place instead of discarding them.
+# SAVE_PWDS_SCRIPT must be a path to a Perl script that contains hooks
+# that save passwords. See rancid-save-pwds-file in share sub-directory
+# for an example on how to use this feature.
+# Comment or leave empty to disable saving of passwords.
+#SAVE_PWDS_SCRIPT=/usr/share/rancid/rancid-save-pwds-file; export SAVE_PWDS_SCRIPT
+#
 # How many times failed collections are retried (for each run) before
 # giving up.  Minimum: 1
 #MAX_ROUNDS=4; export MAX_ROUNDS
