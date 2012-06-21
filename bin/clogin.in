@@ -312,7 +312,7 @@ proc source_password_file { password_file } {
 	set clogin_fd [open "| gpg --quiet --batch -o - $password_file" ]
 	set clogin_data [read $clogin_fd]
 	if { [llength $clogin_data] < 5 } {
-	    send_user "\nError decrypting file $password_file or no data in file $password_file.\n"
+	    send_user "\nError: could not decrypt file $password_file or no data in file $password_file.\n"
 	    exit 1
 	}
 	if [ catch {eval $clogin_data} reason ] {
