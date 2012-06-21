@@ -126,6 +126,7 @@ if [ ! -d $LOGDIR ] ; then
 fi
 
 # run password storage code if configured
+SAVE_PWDS_SCRIPT=${SAVE_PWDS_SCRIPT:=0}
 if [ -f $SAVE_PWDS_SCRIPT ] ; then
     @PERLV@ -e "require(\"$SAVE_PWDS_SCRIPT\"); if (!pwdsRancidStart()) {print pwdsGetError().\"\\n\"; exit 1;};"
     if [ $? -ne 0 ] ; then
