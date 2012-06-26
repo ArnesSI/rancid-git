@@ -57,7 +57,7 @@ sub ProcessHistory {
     my $string_raw = $_;
     my $secret_id = "";
     chomp $string_raw;
-    if ($save_pwds && "@string" =~ /<removed>/) {
+    if ($save_pwds && "@string" =~ /<removed>/ && "@string" !~ /<hash: .+>\s*$/) {
         print STDERR "Saving password from @string" if ($debug);
         $secret_id = pwdsSave($string_raw);
         if (! defined $secret_id) {
