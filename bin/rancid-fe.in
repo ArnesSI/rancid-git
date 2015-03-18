@@ -79,6 +79,7 @@ $vendor =~ tr/[A-Z]/[a-z]/;
     'netscaler'		=> 'nsrancid',
     'netscreen'		=> 'nrancid',
     'procket'		=> 'prancid',
+    'quanta'		=> 'qrancid',
     'redback'		=> 'rrancid',
     'riverstone'	=> 'rivrancid',
     'smc'		=> 'srancid',
