@@ -1,4 +1,4 @@
-#! /usr/bin/expect --
+#! @EXPECT_PATH@ --
 ## This code is a quick hack of the original clogin
 ## to get Quanta hardware working.
 ##
@@ -6,7 +6,7 @@
 ##
 ## $Id: clogin.in 2255 2010-10-06 20:31:24Z heas $
 ##
-## rancid 2.3.6
+## @PACKAGE@ @VERSION@
 ## Copyright (c) 1997-2009 by Terrapin Communications, Inc.
 ## All rights reserved.
 ##

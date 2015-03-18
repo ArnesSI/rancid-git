@@ -59,6 +59,7 @@ DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 	$(srcdir)/mtrancid.in $(srcdir)/nlogin.in $(srcdir)/nrancid.in \
 	$(srcdir)/nslogin.in $(srcdir)/nsrancid.in \
 	$(srcdir)/nxrancid.in $(srcdir)/par.in $(srcdir)/prancid.in \
+	$(srcdir)/qlogin.in $(srcdir)/qrancid.in \
 	$(srcdir)/rancid-fe.in $(srcdir)/rancid.in \
 	$(srcdir)/rivlogin.in $(srcdir)/rivrancid.in \
 	$(srcdir)/rrancid.in $(srcdir)/srancid.in $(srcdir)/tlogin.in \
@@ -79,7 +80,7 @@ CONFIG_CLEAN_FILES = control_rancid par rancid-fe agmrancid alogin \
 	htrancid jlogin jrancid jerancid mrancid mrvlogin mrvrancid \
 	mtrancid mtlogin nlogin nrancid nslogin nsrancid nxrancid \
 	prancid rivlogin rivrancid rrancid srancid tlogin tntlogin \
-	tntrancid trancid xrancid xrrancid zrancid
+	tntrancid trancid xrancid xrrancid zrancid qlogin qrancid
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
@@ -253,7 +254,7 @@ bin_SCRIPTS = agmrancid alogin arancid arrancid avologin avorancid \
 	nrancid nslogin nsrancid nxrancid par prancid rancid-fe rancid \
 	rivlogin rivrancid rrancid srancid tlogin tntlogin tntrancid \
 	trancid xrancid xrrancid zrancid lg.cgi lgform.cgi rancid-cvs \
-	rancid-run
+	rancid-run qlogin qrancid
 EXTRA_DIST = lg.cgi.in lgform.cgi.in rancid-cvs.in rancid-run.in
 #dist_bin_SCRIPTS= $(bin_SCRIPTS:%=%.in)
 CLEANFILES = lg.cgi lgform.cgi rancid-cvs rancid-run
@@ -405,6 +406,10 @@ nsrancid: $(top_builddir)/config.status $(srcdir)/nsrancid.in
 nxrancid: $(top_builddir)/config.status $(srcdir)/nxrancid.in
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 prancid: $(top_builddir)/config.status $(srcdir)/prancid.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+qlogin: $(top_builddir)/config.status $(srcdir)/qlogin.in
+	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
+qrancid: $(top_builddir)/config.status $(srcdir)/qrancid.in
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
 rivlogin: $(top_builddir)/config.status $(srcdir)/rivlogin.in
 	cd $(top_builddir) && $(SHELL) ./config.status $(subdir)/$@
